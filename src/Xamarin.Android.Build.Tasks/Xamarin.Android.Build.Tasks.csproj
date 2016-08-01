@@ -527,6 +527,12 @@
       <Link>Utilities\MD2Managed.cs</Link>
     </Compile>
     <Compile Include="Utilities\Profile.cs" />
+    <Compile Include="Attributes\Android.App\ActivityAttribute.cs" />
+    <Compile Include="Attributes\Android.App\ApplicationAttribute.cs" />
+    <Compile Include="Attributes\Android.App\InstrumentationAttribute.cs" />
+    <Compile Include="Attributes\Android.App\ServiceAttribute.cs" />
+    <Compile Include="Attributes\Android.Content\BroadcastReceiverAttribute.cs" />
+    <Compile Include="Attributes\Android.Content\ContentProviderAttribute.cs" />
     <None Include="Xamarin.Android.Build.Tasks.targets" />
   </ItemGroup>
   <!-- MD doesn't handle MSBuildToolsPath yet

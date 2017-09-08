@@ -76,7 +76,6 @@
       <Private>False</Private>
     </Reference>
   </ItemGroup>
-  <Import Project="..\..\external\Java.Interop\src\Java.Interop.Tools.TypeNameMappings\Java.Interop.Tools.TypeNameMappings.projitems" Label="Shared" Condition="Exists('..\..\external\Java.Interop\src\Java.Interop.Tools.TypeNameMappings\Java.Interop.Tools.TypeNameMappings.projitems')" />
   <Import Project="..\Xamarin.Android.NamingCustomAttributes\Xamarin.Android.NamingCustomAttributes.projitems" Label="Shared" Condition="Exists('..\Xamarin.Android.NamingCustomAttributes\Xamarin.Android.NamingCustomAttributes.projitems')" />
   <Import Project="$(MSBuildBinPath)\Microsoft.CSharp.targets" />
   <PropertyGroup>
@@ -325,6 +324,9 @@
     <Compile Include="Xamarin.Android.Net\AuthModuleBasic.cs" />
     <Compile Include="Xamarin.Android.Net\AuthModuleDigest.cs" />
     <Compile Include="Xamarin.Android.Net\IAndroidAuthenticationModule.cs" />
+    <Compile Include="..\..\external\Java.Interop\src\Java.Interop.Tools.TypeNameMappings\Java.Interop.Tools.TypeNameMappings\JavaNativeTypeManager.cs">
+      <Link>JavaNativeTypeManager.cs</Link>
+    </Compile>
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\..\build-tools\api-merge\api-merge.csproj">

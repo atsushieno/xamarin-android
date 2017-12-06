@@ -6,7 +6,7 @@ using System.Xml;
 using System.Xml.Linq;
 using System.Xml.XPath;
 
-using Android.Runtime;
+using Java.Interop;
 
 using Mono.Cecil;
 

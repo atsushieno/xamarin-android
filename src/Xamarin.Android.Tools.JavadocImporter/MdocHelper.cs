@@ -7,7 +7,7 @@ using System.Xml.Linq;
 
 using MonoDroid.Utils;
 
-using Android.Runtime;
+using Java.Interop;
 
 using Mono.Cecil;
 

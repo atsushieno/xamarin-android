@@ -5,7 +5,7 @@ using System.Xml;
 using System.Xml.Linq;
 using System.Xml.XPath;
 
-using Android.Runtime;
+using Java.Interop;
 
 using MemberInfo = Mono.Cecil.IMemberDefinition;
 using MethodInfo = Mono.Cecil.MethodDefinition;

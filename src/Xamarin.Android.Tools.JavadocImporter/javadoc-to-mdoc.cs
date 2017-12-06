@@ -13,7 +13,7 @@ using Mono.Options;
 
 using Java.Interop.Tools.TypeNameMappings;
 
-using Android.Runtime;
+using Java.Interop;
 
 using Mono.Cecil;
 

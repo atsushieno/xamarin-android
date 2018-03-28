@@ -26,6 +26,7 @@ namespace Java.Interop
 		// NewArray<T>(T[])
 		static readonly MethodInfo jnienv_newarray                        = GetTArrayToIntPtr<int> (JNIEnv.NewArray<int>);
 		static readonly MethodInfo jnienv_getarray                        = GetIntPtrToTArray<int> (JNIEnv.GetArray<int>);
+		static readonly MethodInfo jnienv_copyarray                       = GetIntPtrTArrayToVoid<int> (JNIEnv.CopyArray<int>);
 		static readonly MethodInfo charsequence_tojnihandle               = GetEnumerableCharToIntPtrMethodInfo (CharSequence.ToLocalJniHandle);
 		static readonly MethodInfo jnienv_tojnihandle                     = GetObjectToIntPtrMethodInfo (JNIEnv.ToLocalJniHandle);
 		static readonly MethodInfo jnienv_newstring                       = GetStringToIntPtrMethodInfo (JNIEnv.NewString);
@@ -47,6 +48,7 @@ namespace Java.Interop
 		{
 			CheckReflection (jnienv_newarray, "JNIEnv.NewArray<T>");
 			CheckReflection (jnienv_getarray, "JNIEnv.GetArray<T>");
+			CheckReflection (jnienv_copyarray, "JNIEnv.CopyArray<T>");
 			CheckReflection (charsequence_tojnihandle, "ICharSequence.ToLocalJniHandle");
 			CheckReflection (jnienv_tojnihandle, "JNIEnv.ToLocalJniHandle");
 			CheckReflection (jnienv_newstring, "JNIEnv.NewString");
@@ -98,6 +100,11 @@ namespace Java.Interop
 		}
 
 		static MethodInfo GetIntPtrToTArray<T>(Func<IntPtr, T[]> func)
+		{
+			return func.Method.GetGenericMethodDefinition ();
+		}
+
+		static MethodInfo GetIntPtrTArrayToVoid<T>(Action<IntPtr, T[]> func)
 		{
 			return func.Method.GetGenericMethodDefinition ();
 		}
@@ -164,7 +171,7 @@ namespace Java.Interop
 			return GetCallbackPrep (type, parameter_kind, arg);
 		}
 	
-		public CodeExpression CleanupCallback (CodeExpression arg, CodeExpression orgArg)
+		public CodeItem CleanupCallback (CodeExpression arg, CodeExpression orgArg)
 		{
 			return GetCallbackCleanup (type, arg, orgArg);
 		}
@@ -185,9 +192,10 @@ namespace Java.Interop
 		{
 			switch (GetKind (type)) {
 			// ArraySymbol:
-			//	return new string[] { String.Format ("{0}[] {1} = ({0}[]) JNIEnv.GetArray ({2}, JniHandleOwnership.DoNotTransfer, typeof ({3}));", ElementType, var_name, SymbolTable.GetNativeName (var_name), sym.FullName) };
+			//	return new string[] { String.Format ("{0}[] {1} = ({0}[]) JNIEnv.GetArray ({2});", ElementType, var_name, SymbolTable.GetNativeName (var_name), sym.FullName) };
 			case SymbolKind.Array:
-				return new CodeMethodCall (jnienv_getarray, arg, do_not_transfer_literal, new CodeLiteral (type)).CastTo (type);
+				Console.WriteLine ($"ZZZZZZZZZZZZZZ {arg} ZZZZZZZZZZZZZZZZ");
+				return new CodeMethodCall (jnienv_getarray.MakeGenericMethod (type.GetElementType ()), arg);
 
 			// CharSequenceSymbol:
 			//	return new string[] { String.Format ("Java.Lang.ICharSequence {0} = Java.Lang.Object.GetObject<Java.Lang.ICharSequence> ({1}, JniHandleOwnership.DoNotTransfer);", var_name, SymbolTable.GetNativeName (var_name)) };
@@ -236,7 +244,7 @@ namespace Java.Interop
 			return arg;
 		}
 		
-		public static CodeExpression GetCallbackCleanup (Type type, CodeExpression arg, CodeExpression orgArg)
+		public static CodeItem GetCallbackCleanup (Type type, CodeExpression arg, CodeExpression orgArg)
 		{
 			switch (GetKind (type)) {
 			// ArraySymbol:
@@ -246,21 +254,23 @@ namespace Java.Interop
 			//	return result;
 			case SymbolKind.Array:
 				MethodInfo copyArrayMethod;
-				switch (Type.GetTypeCode (type)) {
+				switch (Type.GetTypeCode (type.GetElementType ())) {
 				case TypeCode.Empty:
 				case TypeCode.DBNull:
-					throw new NotSupportedException ("Only primitive types and IJavaObject is supported in array type in callback method parameter or return value");
+					throw new NotSupportedException ($"Only primitive types and IJavaObject is supported in array type in callback method parameter or return value. The actual type was '{type}'");
 				case TypeCode.Object:
-					if (typeof (IJavaObject).IsAssignableFrom (type))
-						copyArrayMethod = typeof (JNIEnv).GetMethod ("CopyArray", new Type [] { typeof (IJavaObject), typeof (IntPtr) });
+					if (typeof (IJavaObject).IsAssignableFrom (type.GetElementType ()))
+						copyArrayMethod = jnienv_copyarray.MakeGenericMethod (type.GetElementType ());
 					else
 						goto case TypeCode.Empty;
 					break;
 				default:
-					copyArrayMethod = typeof (JNIEnv).GetMethod ("CopyArray", new Type [] { type, typeof (IntPtr) });
+					copyArrayMethod = jnienv_copyarray.MakeGenericMethod (type.GetElementType ());
 					break;
 				}
-				return new CodeWhen (arg.IsNull, arg, new CodeMethodCall (copyArrayMethod, arg, orgArg));
+				var copy = new CodeBlock ();
+				copy.Add (new CodeMethodCall (copyArrayMethod, arg, orgArg));
+				return new CodeIf (arg.IsNull) { TrueBlock = new CodeBlock (), FalseBlock = copy };
 			
 			// CharSequenceSymbol:
 			// 	return new string[] { String.Format ("Java.Lang.ICharSequence {0} = Java.Lang.Object.GetObject<Java.Lang.ICharSequence> ({1}, JniHandleOwnership.DoNotTransfer);", var_name, SymbolTable.GetNativeName (var_name)) };
@@ -325,13 +335,16 @@ namespace Java.Interop
 				return SymbolKind.Class;
 		}
 		
+		// FIXME: do not trust those commented code.
+		// People ignored my comments to not make changes without making changes here, so they broke the consistency.
+		// they still ask me to fix this code. That's not acceptable.
 		public CodeExpression FromNative (CodeExpression arg)
 		{
 			switch (GetKind (type)) {
 			// ArraySymbol:
 			//	return String.Format ("({0}[]) JNIEnv.GetArray ({1}, {2}, typeof ({3}))", ElementType, var_name, owned ? "JniHandleOwnership.TransferLocalRef" : "JniHandleOwnership.DoNotTransfer", opt.GetOutputName (sym.FullName));
 			case SymbolKind.Array:
-				return new CodeMethodCall (jnienv_getarray.MakeGenericMethod (type.GetElementType ()), arg, do_not_transfer_literal, new CodeLiteral (type)).CastTo (type.GetElementType ().MakeArrayType ());
+				return new CodeMethodCall (jnienv_getarray.MakeGenericMethod (type.GetElementType ()), arg);
 
 			// CharSequence:
 			//	return String.Format ("Java.Lang.Object.GetObject<Java.Lang.ICharSequence> ({0}, {1})", var_name, owned ? "JniHandleOwnership.TransferLocalRef" : "JniHandleOwnership.DoNotTransfer");
@@ -680,6 +693,7 @@ namespace Java.Interop
 				else
 					callArgs.Add (parameter_type_infos [i].FromNative (mgen.GetArg (i + 2)));
 			}
+
 			CodeMethodCall call;
 			if (method.IsStatic)
 				call = new CodeMethodCall (method, callArgs.ToArray ());
@@ -703,8 +717,10 @@ namespace Java.Interop
 			//foreach (string cleanup in Parameters.CallbackCleanup)
 			//	sw.WriteLine ("{0}\t{1}", indent, cleanup);
 			var callbackCleanup = new List<CodeStatement> ();
-			for (int i = 0; i < parameter_type_infos.Count; i++)
-				builder.CurrentBlock.Add (parameter_type_infos [i].CleanupCallback (callArgs [i], mgen.GetArg (i)));
+			for (int i = 0; i < parameter_type_infos.Count; i++) {
+				if (parameter_type_infos [i].NeedsPrep)
+					builder.CurrentBlock.Add (parameter_type_infos [i].CleanupCallback (callArgs [i], mgen.GetArg (i + 2)));
+			}
 
 			//if (!IsVoid && Parameters.HasCleanup)
 			//	sw.WriteLine ("{0}\treturn __ret;", indent);
@@ -712,6 +728,9 @@ namespace Java.Interop
 				builder.Return (ret);
 			//sw.WriteLine ("{0}}}", indent);
 			//sw.WriteLine ();
+
+			Console.WriteLine ("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! \n" + mgen.PrintCode ());
+
 			return mgen;
 		}
 	}
